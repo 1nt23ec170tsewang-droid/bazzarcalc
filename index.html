@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="bazaarcalc_logo.svg">
-<link rel="icon" href="bazaarcalc_logo.svg">
+<link rel="icon" type="image/svg+xml" href="bazaarcalc_logo.svg">
 <style>[hidden]{display:none!important}html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;min-height:100vh}</style>
 <title>Bazaar Calculator</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap">
@@ -183,9 +183,17 @@ body{min-height:100dvh}
 #p-calc .key{font-size:clamp(20px,3.2vh,30px); width:min(100%, calc((100vw - 80px)/4)); max-width:90px}
 .stack{align-content:start}
 @media (max-width:600px), (display-mode:standalone), (display-mode:fullscreen){
-  body{background:var(--shell); padding-block:12px}
-  .device{background:none; border:0; box-shadow:none; padding:0; border-radius:0;
-    min-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+  html,body{height:100dvh; overflow:hidden}
+  body{background:var(--shell); padding-block:0;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px)}
+  .device{background:none; border:0; box-shadow:none; padding:8px 0; border-radius:0;
+    height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+    overflow:hidden}
+  .lcd{min-height:0}
+  #p-calc{gap:8px}
+  #p-calc .key{max-width:72px}
+  .stack{overflow-y:auto; -webkit-overflow-scrolling:touch}
 }
 @media (min-width:900px){
   body{padding-block:16px}
@@ -210,7 +218,16 @@ body{min-height:100dvh}
 </head>
 <body>
 <main class="device">
-  <header class="brand"><h1>Bazaar</h1><button class="btn" id="clearAll" type="button" style="height:34px;font-size:13px">Clear all</button></header>
+  <header class="brand">
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="bazaarcalc_logo.svg" alt="" width="26" height="26" style="vertical-align:middle;border-radius:6px">
+      <h1>Bazaar</h1>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" id="installBtn" type="button" style="height:34px;font-size:13px;display:none;background:var(--accent);color:var(--accent-ink);border:none;font-weight:600">Install</button>
+      <button class="btn" id="clearAll" type="button" style="height:34px;font-size:13px">Clear all</button>
+    </div>
+  </header>
 
   <section class="lcd" role="status" aria-live="polite" aria-atomic="true">
     <div class="lcd-meta"><span id="lcdMode">Calc</span><span id="lcdTag"></span></div>
@@ -620,6 +637,30 @@ body{min-height:100dvh}
   });
 
   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function () {}); }
+
+  var deferredPrompt;
+  var installBtn = $('installBtn');
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBtn) installBtn.style.display = 'inline-flex';
+  });
+  if (installBtn) {
+    installBtn.addEventListener('click', function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function (choiceResult) {
+        if (choiceResult.outcome === 'accepted') {
+          installBtn.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    });
+  }
+  window.addEventListener('appinstalled', function () {
+    if (installBtn) installBtn.style.display = 'none';
+    deferredPrompt = null;
+  });
 
   /* ---------- Init ---------- */
   function resetAll() {
