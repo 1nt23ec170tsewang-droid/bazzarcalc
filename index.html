@@ -230,7 +230,7 @@ body{min-height:100dvh}
   </header>
 
   <section class="lcd" role="status" aria-live="polite" aria-atomic="true">
-    <div class="lcd-meta"><span id="lcdMode">Calc</span><span id="lcdTag"></span></div>
+    <div class="lcd-meta"><span id="lcdMode"></span><span id="lcdTag"></span></div>
     <div class="lcd-expr" id="lcdExpr"></div>
     <div class="lcd-val" id="lcdVal">0</div>
     <div class="lcd-sub" id="lcdSub"></div>
@@ -368,7 +368,7 @@ body{min-height:100dvh}
 
   /* ---------- LCD ---------- */
   function show(mode, expr, val, sub, tag) {
-    $('lcdMode').textContent = mode;
+    $('lcdMode').textContent = (mode === 'Calc') ? '' : mode;
     $('lcdTag').textContent = tag || '';
     $('lcdExpr').textContent = expr || ' ';
     $('lcdVal').textContent = val;
