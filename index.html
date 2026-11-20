@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1F5163">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bazaar">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="bazaarcalc_logo.svg">
+<link rel="icon" href="bazaarcalc_logo.svg">
+<style>[hidden]{display:none!important}html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;min-height:100vh}</style>
+<title>Bazaar Calculator</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap">
+<style>
+/* Layout: one handheld device. The LCD is the single output for every mode;
+   the panel under the mode keys holds that mode's inputs. */
+:root{
+  --ground:#EBEBEB; --shell:#F5F5F5; --shell-hi:rgba(255,255,255,.8); --shell-edge:#D8D8D8;
+  --ink:#1A2931; --ink-soft:#506670; --line:#D0D0D0; --field:#FFFFFF; --cell:#E6ECEE;
+  --lcd-bg:#F5F5F5; --lcd-ink:#1A1A1A;
+  --key:#FFFFFF; --key-shadow:#C8C8C8; --key-fn:#E8E8E8;
+  --key-op:#757575; --key-op-shadow:#5A5A5A; --key-op-ink:#FFFFFF;
+  --accent:#22C55E; --accent-shadow:#15803D; --accent-ink:#FFFFFF;
+  --danger:#C0392B;
+  --font-ui:"Space Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-num:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E161A; --shell:#1B2A31; --shell-hi:rgba(255,255,255,.06); --shell-edge:#0A1114;
+    --ink:#E7EFF1; --ink-soft:#97ABB4; --line:#31434C; --field:#122028; --cell:#24353D;
+    --lcd-bg:#1B2A31; --lcd-ink:#E7EFF1;
+    --key:#2C3E47; --key-shadow:#0C1519; --key-fn:#22323A;
+    --key-op:#3A5260; --key-op-shadow:#1E3540; --key-op-ink:#FFFFFF;
+    --accent:#22C55E; --accent-shadow:#15803D; --accent-ink:#FFFFFF;
+    --danger:#FF8A78;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E161A; --shell:#1B2A31; --shell-hi:rgba(255,255,255,.06); --shell-edge:#0A1114;
+  --ink:#E7EFF1; --ink-soft:#97ABB4; --line:#31434C; --field:#122028; --cell:#24353D;
+  --lcd-bg:#1B2A31; --lcd-ink:#E7EFF1;
+  --key:#2C3E47; --key-shadow:#0C1519; --key-fn:#22323A;
+  --key-op:#3A5260; --key-op-shadow:#1E3540; --key-op-ink:#FFFFFF;
+  --accent:#22C55E; --accent-shadow:#15803D; --accent-ink:#FFFFFF;
+  --danger:#FF8A78;
+  color-scheme: dark;
+}
+
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink); font-family:var(--font-ui);
+  padding-block:20px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+.device{
+  max-width:420px; margin-inline:auto; display:grid; gap:14px; padding:16px;
+  background:var(--shell); border:1px solid var(--shell-edge); border-radius:22px;
+  box-shadow:inset 0 1px 0 var(--shell-hi), 0 22px 40px -24px rgba(0,0,0,.18);
+}
+.brand{display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+.brand h1{margin:0; font-size:15px; font-weight:700; letter-spacing:.2em; text-transform:uppercase}
+.brand span{font-size:12px; color:var(--ink-soft)}
+
+/* LCD - clean flat display */
+.lcd{
+  display:grid; gap:2px; min-height:128px; padding:10px 14px 12px;
+  background:var(--lcd-bg); color:var(--lcd-ink); border-radius:12px;
+  font-family:var(--font-num); box-shadow:none;
+}
+.lcd-meta{display:flex; justify-content:space-between; gap:10px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; opacity:.60}
+.lcd-meta span{min-width:0; overflow-wrap:anywhere}
+.lcd-meta span:last-child{text-align:right}
+.lcd-expr{min-height:1.4em; font-size:13px; text-align:right; opacity:.70; overflow-wrap:anywhere}
+.lcd-val{font-size:44px; line-height:1.1; font-weight:400; text-align:right; overflow-wrap:anywhere; font-variant-numeric:tabular-nums; color:var(--lcd-ink)}
+.lcd-sub{min-height:1.4em; font-size:13px; text-align:right; opacity:.65}
+
+/* Mode keys */
+.modes{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.mode{
+  font:500 13px var(--font-ui); padding:10px 4px; border-radius:9px; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--ink-soft);
+}
+.mode[aria-selected="true"]{background:var(--ink); border-color:var(--ink); color:var(--shell)}
+
+/* Calculator keys - Samsung-style circular buttons */
+.pad{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; padding:6px 2px}
+.key{
+  aspect-ratio:1/1; height:auto; border:0; border-radius:50%; cursor:pointer;
+  font:400 24px var(--font-num); background:#FFFFFF; color:#3D3D3D;
+  box-shadow:0 2px 8px rgba(0,0,0,.13);
+  transition:transform .08s ease, box-shadow .08s ease, background .08s ease;
+  display:flex; align-items:center; justify-content:center; padding:0; min-height:0;
+}
+.key:active{transform:scale(.90); box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* Function keys: AC/C, (), % - light gray circle */
+.key.fn{background:#E0E0E0; color:#3D3D3D; font-size:20px}
+/* Operator keys: div, x, minus, plus - medium gray circle with white text */
+.key.op{background:#757575; color:#FFFFFF; font-size:24px; box-shadow:0 2px 8px rgba(0,0,0,.22)}
+.key.op:active{box-shadow:0 1px 3px rgba(0,0,0,.18)}
+.key.op.on{outline:3px solid #22C55E; outline-offset:3px}
+/* Equals key - bright green */
+.key.eq{background:#22C55E; color:#FFFFFF; font-weight:600; font-size:26px; box-shadow:0 3px 12px rgba(34,197,94,.45)}
+.key.eq:active{box-shadow:0 1px 4px rgba(34,197,94,.30); transform:scale(.90)}
+/* Danger (AC/clear) - red text on gray fn circle */
+.key.fn.danger{color:#C0392B; font-weight:700}
+
+/* Dark mode overrides for circular keys */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .key{background:#2C3E47; color:#E7EFF1}
+  :root:not([data-theme="light"]) .key.fn{background:#22323A; color:#E7EFF1}
+  :root:not([data-theme="light"]) .key.op{background:#3A5260; color:#FFFFFF}
+  :root:not([data-theme="light"]) .key.eq{background:#22C55E; color:#FFFFFF}
+  :root:not([data-theme="light"]) .key.fn.danger{color:#FF8A78}
+}
+:root[data-theme="dark"] .key{background:#2C3E47; color:#E7EFF1}
+:root[data-theme="dark"] .key.fn{background:#22323A; color:#E7EFF1}
+:root[data-theme="dark"] .key.op{background:#3A5260; color:#FFFFFF}
+:root[data-theme="dark"] .key.eq{background:#22C55E; color:#FFFFFF}
+:root[data-theme="dark"] .key.fn.danger{color:#FF8A78}
+
+/* Fields */
+.stack{display:grid; gap:12px}
+.field{display:grid; gap:5px; min-width:0}
+.field > span, .sec{font-size:12px; font-weight:500; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-soft)}
+.sec{margin:2px 0 0}
+input, select{
+  width:100%; min-width:0; height:44px; padding:0 12px; border-radius:10px;
+  border:1px solid var(--line); background:var(--field); color:var(--ink);
+  font:500 16px var(--font-num);
+}
+select{font-family:var(--font-ui)}
+.pair{display:grid; grid-template-columns:1fr auto 1fr; gap:8px; align-items:end}
+.triple{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.btn{
+  height:44px; padding:0 14px; border-radius:10px; cursor:pointer;
+  border:1px solid var(--line); background:transparent; color:var(--ink); font:500 15px var(--font-ui);
+}
+.swap{width:44px; padding:0; font-size:18px}
+.note{margin:0; max-width:65ch; font-size:13px; line-height:1.5; color:var(--ink-soft)}
+
+/* Result cells */
+.cells{display:grid; grid-template-columns:repeat(auto-fill, minmax(124px, 1fr)); gap:8px}
+.cell{display:grid; gap:2px; min-width:0; padding:8px 10px; border-radius:10px; background:var(--cell)}
+.cell b{font:500 15px var(--font-num); overflow-wrap:anywhere}
+.cell small{font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-soft)}
+.cell.hit{outline:1.5px solid var(--accent)}
+
+/* Shop cards */
+.card{display:grid; gap:10px; padding:12px; border:1px solid var(--line); border-radius:12px; min-width:0}
+.card h2{margin:0; font-size:15px; font-weight:700}
+.out{margin:0; font:500 22px var(--font-num); overflow-wrap:anywhere}
+.formula{margin:0; font:400 12.5px var(--font-num); color:var(--ink-soft); overflow-wrap:anywhere}
+
+/* Rates */
+.rates summary{cursor:pointer; font-weight:500; font-size:14px; padding:6px 0}
+.rate-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:8px; margin:10px 0}
+.rate{display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft)}
+.rate input{height:38px; font-size:15px}
+
+@media (prefers-reduced-motion: reduce){ .key{transition:none} }
+</style>
+
+<style>
+/* Fill the whole screen: phone = full-height stack, laptop = two columns */
+html{height:100%}
+body{min-height:100dvh}
+.device{
+  max-width:none; width:100%;
+  min-height:calc(100dvh - 40px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  grid-template-rows:auto auto auto 1fr; align-content:stretch;
+}
+.lcd{grid-template-rows:auto 1fr auto auto; min-height:150px}
+.lcd-expr{align-self:end}
+#p-calc{grid-auto-rows:minmax(60px,1fr); align-items:center; justify-items:center}
+#p-calc .key{font-size:clamp(20px,3.2vh,30px); width:min(100%, calc((100vw - 80px)/4)); max-width:90px}
+.stack{align-content:start}
+@media (max-width:600px), (display-mode:standalone), (display-mode:fullscreen){
+  body{background:var(--shell); padding-block:12px}
+  .device{background:none; border:0; box-shadow:none; padding:0; border-radius:0;
+    min-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+}
+@media (min-width:900px){
+  body{padding-block:16px}
+  .device{
+    grid-template-columns:minmax(340px,5fr) 6fr;
+    grid-template-rows:auto 1fr auto;
+    grid-template-areas:"brand brand" "lcd panel" "modes panel";
+    column-gap:28px; row-gap:16px;
+    min-height:calc(100dvh - 32px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  }
+  .brand{grid-area:brand}
+  .lcd{grid-area:lcd; padding:16px 20px 20px; min-height:260px}
+  .modes{grid-area:modes}
+  .mode{padding:14px 4px; font-size:15px}
+  .device > section:not(.lcd){grid-area:panel}
+  .stack{gap:16px}
+  input, select{height:52px; font-size:18px}
+  .card{padding:16px}
+  .out{font-size:28px}
+}
+</style>
+</head>
+<body>
+<main class="device">
+  <header class="brand"><h1>Bazaar</h1><button class="btn" id="clearAll" type="button" style="height:34px;font-size:13px">Clear all</button></header>
+
+  <section class="lcd" role="status" aria-live="polite" aria-atomic="true">
+    <div class="lcd-meta"><span id="lcdMode">Calc</span><span id="lcdTag"></span></div>
+    <div class="lcd-expr" id="lcdExpr"></div>
+    <div class="lcd-val" id="lcdVal">0</div>
+    <div class="lcd-sub" id="lcdSub"></div>
+  </section>
+
+  <nav class="modes" role="tablist" aria-label="Mode">
+    <button class="mode" role="tab" data-mode="calc">Calc</button>
+    <button class="mode" role="tab" data-mode="units">Units</button>
+    <button class="mode" role="tab" data-mode="cur">Currency</button>
+    <button class="mode" role="tab" data-mode="land">Land</button>
+    <button class="mode" role="tab" data-mode="box">Container</button>
+    <button class="mode" role="tab" data-mode="shop">Shop price</button>
+  </nav>
+
+  <!-- Calc -->
+  <section id="p-calc" class="pad" aria-label="Calculator keys">
+    <button class="key fn danger" data-k="AC" aria-label="All clear">AC</button>
+    <button class="key fn" data-k="⌫" aria-label="Backspace">⌫</button>
+    <button class="key fn" data-k="%" aria-label="Percent">%</button>
+    <button class="key op" data-k="÷" aria-label="Divide">÷</button>
+    <button class="key" data-k="7">7</button>
+    <button class="key" data-k="8">8</button>
+    <button class="key" data-k="9">9</button>
+    <button class="key op" data-k="×" aria-label="Multiply">×</button>
+    <button class="key" data-k="4">4</button>
+    <button class="key" data-k="5">5</button>
+    <button class="key" data-k="6">6</button>
+    <button class="key op" data-k="−" aria-label="Subtract">−</button>
+    <button class="key" data-k="1">1</button>
+    <button class="key" data-k="2">2</button>
+    <button class="key" data-k="3">3</button>
+    <button class="key op" data-k="+" aria-label="Add">+</button>
+    <button class="key fn" data-k="±" aria-label="Plus or minus">±</button>
+    <button class="key" data-k="0">0</button>
+    <button class="key" data-k=".">.</button>
+    <button class="key eq" data-k="=" aria-label="Equals">=</button>
+  </section>
+
+  <!-- Units -->
+  <section id="p-units" class="stack" hidden>
+    <label class="field"><span>Category</span><select id="uCat"></select></label>
+    <label class="field"><span>Value</span><input id="uVal" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <div class="pair">
+      <label class="field"><span>From</span><select id="uFrom"></select></label>
+      <button class="btn swap" data-swap="uFrom,uTo" aria-label="Swap units">⇄</button>
+      <label class="field"><span>To</span><select id="uTo"></select></label>
+    </div>
+  </section>
+
+  <!-- Currency -->
+  <section id="p-cur" class="stack" hidden>
+    <label class="field"><span>Amount</span><input id="cAmt" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <div class="pair">
+      <label class="field"><span>From</span><select id="cFrom"></select></label>
+      <button class="btn swap" data-swap="cFrom,cTo" aria-label="Swap currencies">⇄</button>
+      <label class="field"><span>To</span><select id="cTo"></select></label>
+    </div>
+    <details class="rates">
+      <summary>Edit exchange rates</summary>
+      <p class="note">Rates are starting values, not live. Type today's rate for any currency and every result updates. Your edits stay in this browser.</p>
+      <div class="rate-grid" id="rateGrid"></div>
+      <button class="btn" id="rateReset">Reset to starting rates</button>
+    </details>
+  </section>
+
+  <!-- Land -->
+  <section id="p-land" class="stack" hidden>
+    <label class="field"><span>Area</span><input id="lVal" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <div class="pair">
+      <label class="field"><span>From</span><select id="lFrom"></select></label>
+      <button class="btn swap" data-swap="lFrom,lTo" aria-label="Swap units">⇄</button>
+      <label class="field"><span>To</span><select id="lTo"></select></label>
+    </div>
+    <p class="note">1 Acre = 8 Kanal. 1 Kanal = 20 Marla = 5,445 sq ft, so 1 Marla = 272.25 sq ft.</p>
+  </section>
+
+  <!-- Container -->
+  <section id="p-box" class="stack" hidden>
+    <div class="triple">
+      <label class="field"><span>Length</span><input id="bL" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <label class="field"><span>Breadth</span><input id="bB" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <label class="field"><span>Height</span><input id="bH" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    </div>
+    <label class="field"><span>Measured in</span><select id="bU"></select></label>
+    <p class="note">Litres = length × breadth × height in metres × 1,000. One cubic metre is 1,000 litres.</p>
+  </section>
+
+  <!-- Shop -->
+  <section id="p-shop" class="stack" hidden>
+    <label class="field"><span>Price of 1 kg (₹)</span><input id="sKg" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+    <div class="card">
+      <h2>Price for a weight</h2>
+      <label class="field"><span>Weight (grams)</span><input id="sG" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <p class="out" id="sCost"></p>
+      <p class="formula" id="sCostF"></p>
+    </div>
+    <div class="card">
+      <h2>Weight for a budget</h2>
+      <label class="field"><span>Customer pays (₹)</span><input id="sMoney" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <p class="out" id="sWt"></p>
+      <p class="formula" id="sWtF"></p>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- formatting ---------- */
+  function fmt(n, d) {
+    if (d === undefined) d = 4;
+    if (!isFinite(n)) return '—';
+    n = n + 0;
+    if (n !== 0 && (Math.abs(n) >= 1e15 || Math.abs(n) < 1e-6)) return n.toExponential(4).replace('e+', 'e');
+    var s = new Intl.NumberFormat('en-IN', { maximumFractionDigits: d }).format(n);
+    return s === '-0' ? '0' : s;
+  }
+  function fmtTyped(s) {
+    if (s === 'Error' || /e/i.test(s)) return s;
+    var neg = s.charAt(0) === '-';
+    var parts = (neg ? s.slice(1) : s).split('.');
+    var ii = parts[0] === '' ? '0' : new Intl.NumberFormat('en-IN').format(Number(parts[0]));
+    return (neg ? '-' : '') + ii + (parts.length > 1 ? '.' + parts[1] : '');
+  }
+  function num(el) {
+    var t = String(el.value).replace(/,/g, '').trim();
+    if (t === '') return 0;
+    var v = parseFloat(t);
+    return isNaN(v) ? NaN : v;
+  }
+
+  /* ---------- LCD ---------- */
+  function show(mode, expr, val, sub, tag) {
+    $('lcdMode').textContent = mode;
+    $('lcdTag').textContent = tag || '';
+    $('lcdExpr').textContent = expr || ' ';
+    $('lcdVal').textContent = val;
+    $('lcdSub').textContent = sub || ' ';
+    var n = String(val).length;
+    var k = window.innerWidth >= 900 ? 1.7 : 1;
+    $('lcdVal').style.fontSize = Math.round((n <= 9 ? 44 : n <= 12 ? 36 : n <= 16 ? 28 : 22) * k) + 'px';
+  }
+  function fill(sel, items, val) {
+    sel.innerHTML = '';
+    items.forEach(function (i) {
+      var o = document.createElement('option');
+      o.value = o.textContent = i;
+      sel.appendChild(o);
+    });
+    if (val) sel.value = val;
+  }
+  function cells(el, rows) {
+    el.innerHTML = '';
+    rows.forEach(function (r) {
+      var d = document.createElement('div');
+      d.className = 'cell' + (r.hit ? ' hit' : '');
+      var b = document.createElement('b'); b.textContent = r.v;
+      var s = document.createElement('small'); s.textContent = r.u;
+      d.appendChild(b); d.appendChild(s);
+      el.appendChild(d);
+    });
+  }
+
+  /* ---------- Calc ---------- */
+  var C = { cur: '0', prev: null, op: null, fresh: true, expr: '' };
+  var OPS = {
+    '+': function (a, b) { return a + b; },
+    '−': function (a, b) { return a - b; },
+    '×': function (a, b) { return a * b; },
+    '÷': function (a, b) { return a / b; }
+  };
+  function clean(n) { return isFinite(n) ? parseFloat(n.toPrecision(12)) : NaN; }
+  function resolve() { return clean(OPS[C.op](C.prev, parseFloat(C.cur))); }
+  function setResult(r) { C.cur = isFinite(r) ? String(r) : 'Error'; }
+  function clearAll() { C.cur = '0'; C.prev = null; C.op = null; C.fresh = false; C.expr = ''; }
+
+  function press(k) {
+    if (C.cur === 'Error') {
+      clearAll();
+      if (!/^[0-9.]$/.test(k)) return;
+    }
+    if (/^[0-9]$/.test(k)) {
+      if (C.fresh) { C.cur = k; C.fresh = false; if (C.op === null) C.expr = ''; }
+      else if (C.cur.replace(/[-.]/g, '').length < 14) {
+        C.cur = C.cur === '0' ? k : (C.cur === '-0' ? '-' + k : C.cur + k);
+      }
+      return;
+    }
+    if (k === '.') {
+      if (C.fresh) { C.cur = '0.'; C.fresh = false; if (C.op === null) C.expr = ''; }
+      else if (C.cur.indexOf('.') < 0) C.cur += '.';
+      return;
+    }
+    if (k === 'AC') { clearAll(); return; }
+    if (k === '⌫') {
+      if (C.fresh) return;
+      C.cur = (C.cur.length > 1 && !(C.cur.length === 2 && C.cur.charAt(0) === '-')) ? C.cur.slice(0, -1) : '0';
+      return;
+    }
+    if (k === '±') {
+      if (C.cur !== '0') C.cur = C.cur.charAt(0) === '-' ? C.cur.slice(1) : '-' + C.cur;
+      return;
+    }
+    if (k === '%') {
+      var v = parseFloat(C.cur);
+      if (C.op && C.prev !== null && (C.op === '+' || C.op === '−')) v = C.prev * v / 100;
+      else v = v / 100;
+      C.cur = String(clean(v));
+      C.fresh = false;
+      return;
+    }
+    if (OPS[k]) {
+      if (C.op && !C.fresh) {
+        var r = resolve();
+        setResult(r);
+        if (C.cur === 'Error') return;
+        C.prev = r;
+      } else {
+        C.prev = parseFloat(C.cur);
+      }
+      C.op = k; C.fresh = true;
+      C.expr = fmt(C.prev, 10) + ' ' + k;
+      return;
+    }
+    if (k === '=') {
+      if (!C.op) return;
+      var b = parseFloat(C.cur);
+      var res = resolve();
+      C.expr = fmt(C.prev, 10) + ' ' + C.op + ' ' + fmt(b, 10) + ' =';
+      setResult(res);
+      C.prev = null; C.op = null; C.fresh = true;
+    }
+  }
+  function updCalc() {
+    show('Calc', C.expr, fmtTyped(C.cur), '', '');
+    document.querySelectorAll('#p-calc .op').forEach(function (b) {
+      b.classList.toggle('on', !!(C.op && C.fresh && b.getAttribute('data-k') === C.op));
+    });
+  }
+
+  /* ---------- Units ---------- */
+  var UNITS = {
+    Temperature: { list: ['°C', '°F', 'K'], def: ['°C', '°F'] },
+    Length: { base: { km: 1000, m: 1, cm: 0.01, mm: 0.001, mi: 1609.344, yd: 0.9144, ft: 0.3048, 'in': 0.0254 }, def: ['m', 'ft'] },
+    Weight: { base: { tonne: 1000, quintal: 100, kg: 1, g: 0.001, mg: 1e-6, lb: 0.45359237, oz: 0.028349523125 }, def: ['kg', 'lb'] },
+    Volume: { base: { L: 1, mL: 0.001, 'm³': 1000, 'gal (US)': 3.785411784, 'fl oz (US)': 0.029573529564 }, def: ['L', 'gal (US)'] }
+  };
+  function unitList(cat) { return UNITS[cat].list || Object.keys(UNITS[cat].base); }
+  function toC(v, u) { return u === '°C' ? v : u === '°F' ? (v - 32) * 5 / 9 : v - 273.15; }
+  function fromC(c, u) { return u === '°C' ? c : u === '°F' ? c * 9 / 5 + 32 : c + 273.15; }
+  function convertUnit(cat, v, f, t) {
+    if (cat === 'Temperature') return fromC(toC(v, f), t);
+    var b = UNITS[cat].base;
+    return v * b[f] / b[t];
+  }
+  function setUnitCat() {
+    var cat = $('uCat').value, list = unitList(cat);
+    fill($('uFrom'), list, UNITS[cat].def[0]);
+    fill($('uTo'), list, UNITS[cat].def[1]);
+  }
+  function updUnits() {
+    var cat = $('uCat').value, f = $('uFrom').value, t = $('uTo').value, v = num($('uVal'));
+    if (!isFinite(v)) { show('Units', 'Enter a number', '—', '', cat); return; }
+    show('Units', fmt(v, 6) + ' ' + f + ' =', fmt(convertUnit(cat, v, f, t), 6), t, cat);
+  }
+
+  /* ---------- Currency ---------- */
+  var DEFAULT_RATES = { USD: 1, INR: 88, PKR: 281, EUR: 0.86, GBP: 0.76, AED: 3.6725, SAR: 3.75, JPY: 154, CAD: 1.4, AUD: 1.54, CNY: 7.1 };
+  var CODES = Object.keys(DEFAULT_RATES);
+  var RATES = {};
+  CODES.forEach(function (c) { RATES[c] = DEFAULT_RATES[c]; });
+  try {
+    var saved = JSON.parse(localStorage.getItem('bazaar.rates') || 'null');
+    if (saved) CODES.forEach(function (c) { if (typeof saved[c] === 'number' && saved[c] > 0) RATES[c] = saved[c]; });
+  } catch (e) {}
+  function saveRates() { try { localStorage.setItem('bazaar.rates', JSON.stringify(RATES)); } catch (e) {} }
+  function buildRates() {
+    var g = $('rateGrid');
+    g.innerHTML = '';
+    CODES.filter(function (c) { return c !== 'USD'; }).forEach(function (c) {
+      var row = document.createElement('label');
+      row.className = 'rate';
+      var a = document.createElement('span'); a.textContent = '1 USD =';
+      var inp = document.createElement('input');
+      inp.id = 'rate-' + c; inp.setAttribute('inputmode', 'decimal'); inp.value = RATES[c];
+      inp.addEventListener('input', function () {
+        var v = num(inp);
+        if (v > 0) { RATES[c] = v; saveRates(); }
+      });
+      var z = document.createElement('span'); z.textContent = c;
+      row.appendChild(a); row.appendChild(inp); row.appendChild(z);
+      g.appendChild(row);
+    });
+  }
+  function updCur() {
+    var a = num($('cAmt')), f = $('cFrom').value, t = $('cTo').value;
+    var rate = RATES[t] / RATES[f];
+    var tag = '1 ' + f + ' = ' + fmt(rate, 4) + ' ' + t;
+    if (!isFinite(a)) { show('Currency', 'Enter a number', '—', '', tag); return; }
+    show('Currency', fmt(a, 2) + ' ' + f + ' =', fmt(a * rate, 2), t, tag);
+  }
+
+  /* ---------- Land ---------- */
+  var LAND = { Marla: 272.25, Kanal: 5445, Acre: 43560, 'Sq ft': 1, 'Sq yd': 9, 'Sq m': 10.7639104, Hectare: 107639.104 };
+  function updLand() {
+    var v = num($('lVal')), f = $('lFrom').value, t = $('lTo').value;
+    if (!isFinite(v)) { show('Land', 'Enter a number', '—', '', 'Area'); return; }
+    var sqft = v * LAND[f];
+    show('Land', fmt(v, 4) + ' ' + f + ' =', fmt(sqft / LAND[t], 4), t, 'Area');
+  }
+
+  /* ---------- Container ---------- */
+  var LEN = { m: 1, cm: 0.01, ft: 0.3048, 'in': 0.0254 };
+  function updBox() {
+    var l = num($('bL')), b = num($('bB')), h = num($('bH')), u = $('bU').value;
+    if (!isFinite(l) || !isFinite(b) || !isFinite(h)) { show('Container', 'Enter a number', '—', '', 'Capacity'); return; }
+    var m3 = (l * LEN[u]) * (b * LEN[u]) * (h * LEN[u]);
+    var litres = m3 * 1000;
+    show('Container', fmt(l, 3) + ' × ' + fmt(b, 3) + ' × ' + fmt(h, 3) + ' ' + u, fmt(litres, 3), 'litres', 'Capacity');
+  }
+
+  /* ---------- Shop ---------- */
+  var shopLast = 'cost';
+  function updShop() {
+    var p = num($('sKg')), g = num($('sG')), m = num($('sMoney'));
+    var cost = g / 1000 * p;
+    var wt = (p > 0) ? m / p * 1000 : (p === 0 ? 0 : NaN);
+    var okC = isFinite(cost), okW = isFinite(wt);
+    $('sCost').textContent = okC ? '₹' + fmt(cost, 2) : '—';
+    $('sCostF').textContent = okC ? fmt(g, 2) + ' g ÷ 1,000 × ' + fmt(p, 2) + ' = ₹' + fmt(cost, 2) : 'Enter the price per kg and the weight.';
+    $('sWt').textContent = okW ? fmt(wt, 2) + ' g' + (wt >= 1000 ? '  (' + fmt(wt / 1000, 3) + ' kg)' : '') : '—';
+    $('sWtF').textContent = okW ? '₹' + fmt(m, 2) + ' ÷ ' + fmt(p, 2) + ' × 1,000 = ' + fmt(wt, 2) + ' g' : 'Enter the price per kg and the amount.';
+    if (shopLast === 'cost') {
+      show('Shop price', okC ? fmt(g, 2) + ' g at ₹' + fmt(p, 2) + '/kg' : 'Enter the details', okC ? '₹' + fmt(cost, 2) : '—', okC ? 'to pay' : '', 'Price');
+    } else {
+      show('Shop price', okW ? '₹' + fmt(m, 2) + ' at ₹' + fmt(p, 2) + '/kg' : 'Enter the details', okW ? fmt(wt, 2) : '—', okW ? 'grams' : '', 'Weight');
+    }
+  }
+
+  /* ---------- Modes ---------- */
+  var MODES = ['calc', 'units', 'cur', 'land', 'box', 'shop'];
+  var UPDATERS = { calc: updCalc, units: updUnits, cur: updCur, land: updLand, box: updBox, shop: updShop };
+  var mode = 'calc';
+  function update() { UPDATERS[mode](); }
+  function setMode(m) {
+    mode = m;
+    MODES.forEach(function (x) {
+      $('p-' + x).hidden = x !== m;
+      var t = document.querySelector('[data-mode="' + x + '"]');
+      t.setAttribute('aria-selected', x === m ? 'true' : 'false');
+      t.tabIndex = x === m ? 0 : -1;
+    });
+    update();
+  }
+
+  /* ---------- Events ---------- */
+  document.addEventListener('click', function (e) {
+    var k = e.target.closest('[data-k]');
+    if (k) { press(k.getAttribute('data-k')); update(); return; }
+    var tab = e.target.closest('[data-mode]');
+    if (tab) { setMode(tab.getAttribute('data-mode')); return; }
+    var sw = e.target.closest('[data-swap]');
+    if (sw) {
+      var ids = sw.getAttribute('data-swap').split(',');
+      var a = $(ids[0]), b = $(ids[1]), tmp = a.value;
+      a.value = b.value; b.value = tmp;
+      update();
+    }
+  });
+  document.addEventListener('input', function (e) {
+    var id = e.target.id;
+    if (id === 'sG') shopLast = 'cost';
+    if (id === 'sMoney') shopLast = 'wt';
+    if (id === 'uCat') setUnitCat();
+    update();
+  });
+  $('rateReset').addEventListener('click', function () {
+    CODES.forEach(function (c) {
+      RATES[c] = DEFAULT_RATES[c];
+      var i = $('rate-' + c); if (i) i.value = RATES[c];
+    });
+    saveRates();
+    update();
+  });
+  document.querySelector('.modes').addEventListener('keydown', function (e) {
+    var step = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    var next = MODES[(MODES.indexOf(mode) + step + MODES.length) % MODES.length];
+    setMode(next);
+    document.querySelector('[data-mode="' + next + '"]').focus();
+  });
+  var KEYMAP = { '/': '÷', '*': '×', '-': '−', '+': '+', 'Enter': '=', '=': '=', 'Backspace': '⌫', 'Escape': 'AC', '%': '%', ',': '.', '.': '.' };
+  document.addEventListener('keydown', function (e) {
+    if (mode !== 'calc' || e.ctrlKey || e.metaKey || e.altKey) return;
+    var tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (tag === 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) return;
+    var k = /^[0-9]$/.test(e.key) ? e.key : KEYMAP[e.key];
+    if (!k) return;
+    e.preventDefault();
+    press(k); update();
+  });
+
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function () {}); }
+
+  /* ---------- Init ---------- */
+  function resetAll() {
+    ['uVal', 'cAmt', 'lVal', 'bL', 'bB', 'bH', 'sKg', 'sG', 'sMoney'].forEach(function (id) { $(id).value = ''; });
+    C.cur = '0'; C.prev = null; C.op = null; C.fresh = true; C.expr = '';
+    shopLast = 'cost';
+    fill($('uCat'), Object.keys(UNITS), 'Temperature');
+    setUnitCat();
+    fill($('cFrom'), CODES, 'USD');
+    fill($('cTo'), CODES, 'INR');
+    fill($('lFrom'), Object.keys(LAND), 'Acre');
+    fill($('lTo'), Object.keys(LAND), 'Kanal');
+    fill($('bU'), Object.keys(LEN), 'm');
+    setMode('calc');
+  }
+  buildRates();
+  resetAll();
+  $('clearAll').addEventListener('click', resetAll);
+  /* Start fresh when the app is reopened */
+  window.addEventListener('resize', update);
+  window.addEventListener('pageshow', function () { setTimeout(resetAll, 0); });
+  var hiddenAt = 0;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hiddenAt = Date.now(); }
+    else if (hiddenAt && Date.now() - hiddenAt > 20000) { resetAll(); }
+  });
+})();
+</script>
+</body>
+</html>
