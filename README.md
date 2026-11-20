@@ -25,7 +25,9 @@ A sleek, all-in-one calculator web app designed for everyday bazaar and marketpl
 
 ### 💱 Currency Converter
 - 11 currencies: USD, INR, PKR, EUR, GBP, AED, SAR, JPY, CAD, AUD, CNY
-- Editable exchange rates (saved to browser storage)
+- **Live auto-syncing exchange rates** based on real-time market fluctuations
+- Default base rate: 1 USD = 92.66 INR
+- Offline fallback with local rate persistence and custom override option
 - Instant two-way conversion
 
 ### 🏡 Land Area Converter

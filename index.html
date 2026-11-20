@@ -9,8 +9,9 @@
 <meta name="apple-mobile-web-app-title" content="Bazaar">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="bazaarcalc_logo.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/svg+xml" href="bazaarcalc_logo.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <style>[hidden]{display:none!important}html{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;min-height:100vh}</style>
 <title>Bazaar Calculator</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;700&display=swap">
@@ -223,10 +224,7 @@ body{min-height:100dvh}
       <img src="bazaarcalc_logo.svg" alt="" width="26" height="26" style="vertical-align:middle;border-radius:6px">
       <h1>Bazaar</h1>
     </div>
-    <div style="display:flex;gap:8px">
-      <button class="btn" id="installBtn" type="button" style="height:34px;font-size:13px;display:none;background:var(--accent);color:var(--accent-ink);border:none;font-weight:600">Install</button>
-      <button class="btn" id="clearAll" type="button" style="height:34px;font-size:13px">Clear all</button>
-    </div>
+    <button class="btn" id="installBtn" type="button" style="height:34px;font-size:13px;display:none;background:var(--accent);color:var(--accent-ink);border:none;font-weight:600">Install</button>
   </header>
 
   <section class="lcd" role="status" aria-live="polite" aria-atomic="true">
@@ -289,10 +287,13 @@ body{min-height:100dvh}
       <label class="field"><span>To</span><select id="cTo"></select></label>
     </div>
     <details class="rates">
-      <summary>Edit exchange rates</summary>
-      <p class="note">Rates are starting values, not live. Type today's rate for any currency and every result updates. Your edits stay in this browser.</p>
+      <summary>Exchange rates & live updates</summary>
+      <p class="note" id="rateStatus">Live rates auto-sync with markets. Base rate: 1 USD = 92.66 INR.</p>
       <div class="rate-grid" id="rateGrid"></div>
-      <button class="btn" id="rateReset">Reset to starting rates</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" id="rateRefresh" type="button" style="flex:1">↻ Refresh live</button>
+        <button class="btn" id="rateReset" type="button" style="flex:1">Reset to defaults</button>
+      </div>
     </details>
   </section>
 
@@ -499,15 +500,59 @@ body{min-height:100dvh}
   }
 
   /* ---------- Currency ---------- */
-  var DEFAULT_RATES = { USD: 1, INR: 88, PKR: 281, EUR: 0.86, GBP: 0.76, AED: 3.6725, SAR: 3.75, JPY: 154, CAD: 1.4, AUD: 1.54, CNY: 7.1 };
+  var DEFAULT_RATES = { USD: 1, INR: 92.66, PKR: 281, EUR: 0.86, GBP: 0.76, AED: 3.6725, SAR: 3.75, JPY: 154, CAD: 1.4, AUD: 1.54, CNY: 7.1 };
   var CODES = Object.keys(DEFAULT_RATES);
   var RATES = {};
   CODES.forEach(function (c) { RATES[c] = DEFAULT_RATES[c]; });
   try {
     var saved = JSON.parse(localStorage.getItem('bazaar.rates') || 'null');
-    if (saved) CODES.forEach(function (c) { if (typeof saved[c] === 'number' && saved[c] > 0) RATES[c] = saved[c]; });
+    if (saved) {
+      CODES.forEach(function (c) {
+        if (typeof saved[c] === 'number' && saved[c] > 0) {
+          if (c === 'INR' && saved[c] === 88) RATES[c] = 92.66;
+          else RATES[c] = saved[c];
+        }
+      });
+    }
   } catch (e) {}
   function saveRates() { try { localStorage.setItem('bazaar.rates', JSON.stringify(RATES)); } catch (e) {} }
+
+  function fetchLiveRates() {
+    var statusEl = $('rateStatus');
+    if (statusEl) statusEl.textContent = 'Syncing live market rates...';
+
+    fetch('https://open.er-api.com/v6/latest/USD')
+      .then(function (res) { return res.json(); })
+      .catch(function () {
+        return fetch('https://api.exchangerate-api.com/v4/latest/USD').then(function (r) { return r.json(); });
+      })
+      .then(function (data) {
+        var rates = data && (data.rates || data.conversion_rates);
+        if (rates) {
+          CODES.forEach(function (c) {
+            if (typeof rates[c] === 'number' && rates[c] > 0) {
+              RATES[c] = parseFloat(rates[c].toFixed(4));
+              var inp = $('rate-' + c);
+              if (inp && document.activeElement !== inp) {
+                inp.value = RATES[c];
+              }
+            }
+          });
+          saveRates();
+          if (mode === 'cur') update();
+          if (statusEl) {
+            var timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            statusEl.textContent = '🟢 Live rates updated (' + timeStr + '). 1 USD = ' + fmt(RATES['INR'], 2) + ' INR.';
+          }
+        }
+      })
+      .catch(function () {
+        if (statusEl) {
+          statusEl.textContent = 'Using saved/default rates (1 USD = ' + fmt(RATES['INR'], 2) + ' INR). Connect to internet for live updates.';
+        }
+      });
+  }
+
   function buildRates() {
     var g = $('rateGrid');
     g.innerHTML = '';
@@ -584,6 +629,7 @@ body{min-height:100dvh}
       t.setAttribute('aria-selected', x === m ? 'true' : 'false');
       t.tabIndex = x === m ? 0 : -1;
     });
+    if (m === 'cur') fetchLiveRates();
     update();
   }
 
@@ -615,7 +661,15 @@ body{min-height:100dvh}
     });
     saveRates();
     update();
+    var statusEl = $('rateStatus');
+    if (statusEl) statusEl.textContent = 'Reset to default rates (1 USD = ' + fmt(RATES['INR'], 2) + ' INR).';
   });
+  var rateRefreshBtn = $('rateRefresh');
+  if (rateRefreshBtn) {
+    rateRefreshBtn.addEventListener('click', function () {
+      fetchLiveRates();
+    });
+  }
   document.querySelector('.modes').addEventListener('keydown', function (e) {
     var step = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? 1 : (e.key === 'ArrowLeft' || e.key === 'ArrowUp') ? -1 : 0;
     if (!step) return;
@@ -662,11 +716,22 @@ body{min-height:100dvh}
     deferredPrompt = null;
   });
 
-  /* ---------- Init ---------- */
+  /* ---------- Init & Lifecycle ---------- */
   function resetAll() {
-    ['uVal', 'cAmt', 'lVal', 'bL', 'bB', 'bH', 'sKg', 'sG', 'sMoney'].forEach(function (id) { $(id).value = ''; });
-    C.cur = '0'; C.prev = null; C.op = null; C.fresh = true; C.expr = '';
+    ['uVal', 'cAmt', 'lVal', 'bL', 'bB', 'bH', 'sKg', 'sG', 'sMoney'].forEach(function (id) {
+      var el = $(id);
+      if (el) el.value = '';
+    });
+    C.cur = '0';
+    C.prev = null;
+    C.op = null;
+    C.fresh = true;
+    C.expr = '';
     shopLast = 'cost';
+    if ($('sCost')) $('sCost').textContent = '—';
+    if ($('sCostF')) $('sCostF').textContent = 'Enter the price per kg and the weight.';
+    if ($('sWt')) $('sWt').textContent = '—';
+    if ($('sWtF')) $('sWtF').textContent = 'Enter the price per kg and the amount.';
     fill($('uCat'), Object.keys(UNITS), 'Temperature');
     setUnitCat();
     fill($('cFrom'), CODES, 'USD');
@@ -675,18 +740,25 @@ body{min-height:100dvh}
     fill($('lTo'), Object.keys(LAND), 'Kanal');
     fill($('bU'), Object.keys(LEN), 'm');
     setMode('calc');
+    update();
   }
+
   buildRates();
+  // 1. Initialise the state to zero on launch
   resetAll();
-  $('clearAll').addEventListener('click', resetAll);
-  /* Start fresh when the app is reopened */
-  window.addEventListener('resize', update);
-  window.addEventListener('pageshow', function () { setTimeout(resetAll, 0); });
-  var hiddenAt = 0;
+  fetchLiveRates();
+  window.addEventListener('online', fetchLiveRates);
+
+  // 2. Hook into app's resume/foreground lifecycle events to reset all calculation values back to zero
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { hiddenAt = Date.now(); }
-    else if (hiddenAt && Date.now() - hiddenAt > 20000) { resetAll(); }
+    if (!document.hidden) {
+      resetAll();
+    }
   });
+  window.addEventListener('focus', resetAll);
+  window.addEventListener('pageshow', resetAll);
+  document.addEventListener('resume', resetAll);
+  window.addEventListener('resize', update);
 })();
 </script>
 </body>
